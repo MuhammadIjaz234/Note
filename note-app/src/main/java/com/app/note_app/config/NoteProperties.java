@@ -6,12 +6,46 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "note")
 public class NoteProperties {
 
-   //@Value("${uploadDir:/tmp/uploads/}")
-   private String uploadDir;
-    public String getUploadDir() {
-        return uploadDir;
+    @Value("${minio.host:localhost}")
+    private String minioHost;
+
+    @Value("${minio.bucket:image-storage}")
+    private String minioBucket;
+
+    @Value("${minio.access.key:}")
+    private String minioAccessKey;
+
+    @Value("${minio.secret.key:}")
+    private String minioSecretKey;
+
+    @Value("${minio.useSSL:false}")
+    private boolean minioUseSSL;
+
+    @Value("${minio.reconnect.enabled:true}")
+    private boolean minioReconnectEnabled;
+
+    public String getMinioHost() {
+        return minioHost;
     }
-    public void setUploadDir(String uploadDir) {
-        this.uploadDir = uploadDir;
+
+    public String getMinioBucket() {
+        return minioBucket;
     }
+
+    public String getMinioAccessKey() {
+        return minioAccessKey;
+    }
+
+    public String getMinioSecretKey() {
+        return minioSecretKey;
+    }
+
+    public boolean isMinioUseSSL() {
+        return minioUseSSL;
+    }
+
+    public boolean isMinioReconnectEnabled() {
+        return minioReconnectEnabled;
+    }
+
 }

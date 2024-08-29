@@ -11,7 +11,7 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
 @EnableConfigurationProperties(NoteProperties.class)
 public class NoteConfig implements WebMvcConfigurer {
 
-    @Autowired
+  /*  @Autowired
     private NoteProperties properties;
 
     @Override
@@ -22,6 +22,6 @@ public class NoteConfig implements WebMvcConfigurer {
                 .setCachePeriod(3600)
                 .resourceChain(true)
                 .addResolver(new PathResourceResolver());
-    }
+    }*/
 
 }

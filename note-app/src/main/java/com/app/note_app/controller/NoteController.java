@@ -3,29 +3,40 @@ package com.app.note_app.controller;
 import com.app.note_app.bean.Note;
 import com.app.note_app.config.NoteProperties;
 import com.app.note_app.repository.NotesRepository;
+import io.minio.MinioClient;
+import jakarta.annotation.PostConstruct;
+import org.apache.commons.io.IOUtils;
 import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 @Controller
+@EnableConfigurationProperties(NoteProperties.class)
 public class NoteController {
     @Autowired
     private NotesRepository notesRepository;
     @Autowired
     private NoteProperties properties;
+    private MinioClient minioClient;
+
+    @PostConstruct
+    public void init() throws InterruptedException {
+        initMinio();
+    }
     private Parser parser = Parser.builder().build();
     private HtmlRenderer renderer = HtmlRenderer.builder().build();
     @GetMapping("/")
@@ -57,6 +68,11 @@ public class NoteController {
         return "index";
     }
 
+    @GetMapping(value = "/img/{name}", produces = MediaType.IMAGE_PNG_VALUE)
+    public @ResponseBody byte[] getImageByName(@PathVariable String name) throws Exception {
+        InputStream imageStream = minioClient.getObject(properties.getMinioBucket(), name);
+        return IOUtils.toByteArray(imageStream);
+    }
     private void getAllNotes(Model model) {
         List<Note> notes = notesRepository.findAll();
         Collections.reverse(notes);
@@ -72,14 +88,43 @@ public class NoteController {
         }
     }
     private void uploadImage(MultipartFile file, String description, Model model) throws Exception {
-        File uploadsDir = new File(properties.getUploadDir());
-        if (!uploadsDir.exists()) {
-            uploadsDir.mkdir();
-        }
-        String fileId = UUID.randomUUID().toString() + "." +
-                file.getOriginalFilename().split("\\.")[1];
-        file.transferTo(new File(properties.getUploadDir() + fileId));
+        String fileId = UUID.randomUUID().toString() + "." + file.getOriginalFilename().split("\\.")[1];
+        minioClient.putObject(properties.getMinioBucket(), fileId, file.getInputStream(),
+                file.getSize(), null, null, file.getContentType());
         model.addAttribute("description",
-                description + " ![](/uploads/" + fileId + ")");
+                description + " ![](/img/" + fileId + ")");
     }
+    private void initMinio() throws InterruptedException {
+        boolean success = false;
+        while (!success) {
+            try {
+                minioClient = new MinioClient("http://" + properties.getMinioHost() + ":9000" ,
+                        properties.getMinioAccessKey(),
+                        properties.getMinioSecretKey(),
+                        false);
+                // Check if the bucket already exists.
+                boolean isExist = minioClient.bucketExists(properties.getMinioBucket());
+                if (isExist) {
+                    System.out.println("> Bucket already exists.");
+                } else {
+                    minioClient.makeBucket(properties.getMinioBucket());
+                }
+                success = true;
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.out.println("> Minio Reconnect: " + properties.isMinioReconnectEnabled());
+                if (properties.isMinioReconnectEnabled()) {
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException ex) {
+                        ex.printStackTrace();
+                    }
+                } else {
+                    success = true;
+                }
+            }
+        }
+        System.out.println("> Minio initialized!");
+    }
+
 }
